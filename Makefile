@@ -56,7 +56,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -fno-omit-frame-pointer -ggdb -gdwarf-4 -g3 
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 # CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -135,6 +135,7 @@ UPROGS=\
 	$U/_rm\
 	$U/_sh\
 	$U/_stressfs\
+	$U/_sysinfo\
 	$U/_usertests\
 	$U/_grind\
 	$U/_wc\

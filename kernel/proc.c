@@ -693,3 +693,17 @@ procdump(void)
     printf("\n");
   }
 }
+
+uint32 active_proc_count(void) 
+{
+  struct proc *p;
+
+  int active_proc_count  = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    if (p->state != UNUSED && p->state != USED) 
+      active_proc_count++;
+  }
+
+  return active_proc_count;
+}
