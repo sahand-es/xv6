@@ -105,3 +105,23 @@ uint64 sys_sysinfo(void)
   
   return copyout(myproc()->pagetable, (uint64)out, (char*)&result, sizeof(result));
 }
+
+uint64 sys_next_process(void)
+{
+  int before_pid;
+  struct process_data temp;
+  struct process_data *proc_data;
+
+  argint(0, &before_pid);
+  argaddr(1, (uint64*)&proc_data);
+
+  int result = next_process(before_pid, &temp);
+  if (result > 0) {
+    int copy_result = copyout(myproc()->pagetable, (uint64)proc_data, (char*)&temp, sizeof(temp));
+    if (copy_result < 0) {
+      return 0;
+    }
+    return 1;
+  }
+  return 0;
+}
