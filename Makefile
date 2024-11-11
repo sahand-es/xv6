@@ -137,6 +137,7 @@ UPROGS=\
 	$U/_stressfs\
 	$U/_sysinfo\
 	$U/_pstree\
+	$U/_hw3test\
 	$U/_usertests\
 	$U/_grind\
 	$U/_wc\
