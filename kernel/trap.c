@@ -207,6 +207,13 @@ devintr()
     if(irq)
       plic_complete(irq);
 
+    for (int i = 1; i < NCPU; i++) {
+      cpus[i].found_runnable = 1;
+      if (i != cpuid()) {
+        *((volatile int *) ACLINT_SETSSIP(i)) = 1;
+      }
+    }
+
     return 1;
   } else if(scause == 0x8000000000000005L){
     // timer interrupt.
