@@ -669,3 +669,60 @@ procdump(void) {
     printf("\n");
   }
 }
+
+uint32 active_proc_count(void) {
+  struct proc *p;
+
+  int active_proc_count = 0;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    if (p->state != UNUSED && p->state != USED)
+      active_proc_count++;
+  }
+
+  return active_proc_count;
+}
+
+int next_process(int before_pid, struct process_data *proc_data) {
+  struct proc *p;
+  int found = 0;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    // edge case: before_pid is 0 and we are looking for init process
+    if (!found && before_pid == 0) {
+      found = 1;
+      continue;
+    }
+    if (!found && p->pid == before_pid) {
+      found = 1;
+      continue;
+    }
+    if (found && p->pid > before_pid) {
+      // return init if before_pid is 0
+      if (before_pid == 0) {
+        p = p->parent;
+      }
+      proc_data->pid = p->pid;
+      proc_data->parent_pid = before_pid == 0 ? -1 : p->parent->pid;
+      switch (p->state) {
+      case RUNNABLE:
+        proc_data->state = 1;
+        break;
+      case RUNNING:
+        proc_data->state = 2;
+        break;
+      case ZOMBIE:
+        proc_data->state = 3;
+        break;
+      default:
+        proc_data->state = 0;
+        break;
+      }
+      proc_data->heap_size = p->sz;
+      strncpy(proc_data->name, p->name, sizeof(proc_data->name));
+      return 1;
+    }
+  }
+
+  return 0;
+}
