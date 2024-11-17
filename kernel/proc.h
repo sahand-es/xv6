@@ -24,6 +24,7 @@ struct cpu {
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
+  int found_runnable;         // 1 if a runnable process was found, 0 otherwise
 };
 
 extern struct cpu cpus[NCPU];
@@ -105,7 +106,3 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
-
-
-
-
