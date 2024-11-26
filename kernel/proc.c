@@ -284,6 +284,7 @@ fork(void) {
     return -1;
   }
   np->sz = p->sz;
+  np->nice = p->nice;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -431,6 +432,7 @@ void
 scheduler(void) {
   struct proc* p;
   struct cpu* c = mycpu();
+  struct proc* selected_proc;
 
   c->proc = 0;
   for (;;) {
@@ -439,25 +441,36 @@ scheduler(void) {
     // processes are waiting.
     intr_on();
 
-    c->found_runnable = 0;
+    selected_proc = 0;
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if (p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        c->found_runnable = 1;
+        if (selected_proc == 0 || p->nice < selected_proc->nice) {
+          if (selected_proc != 0) {
+            release(&selected_proc->lock);
+          }
+          selected_proc = p;
+        } else {
+          release(&p->lock);
+        }
+      } else {
+        release(&p->lock);
       }
-      release(&p->lock);
     }
-    if (c->found_runnable == 0) {
+
+    if (selected_proc != 0) {
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      selected_proc->state = RUNNING;
+      c->proc = selected_proc;
+      swtch(&c->context, &selected_proc->context);
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&selected_proc->lock);
+    } else {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
@@ -719,6 +732,7 @@ int next_process(int before_pid, struct process_data *proc_data) {
         break;
       }
       proc_data->heap_size = p->sz;
+      proc_data->nice = p->nice;
       strncpy(proc_data->name, p->name, sizeof(proc_data->name));
       return 1;
     }
@@ -726,3 +740,16 @@ int next_process(int before_pid, struct process_data *proc_data) {
 
   return 0;
 }
+
+int nice(int inc) {
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  int new_nice = p->nice + inc;
+  if (new_nice < -20 || new_nice > 19) {
+    return -1;
+  }
+  p->nice = new_nice;
+  release(&p->lock);
+  return 0;
+}
+

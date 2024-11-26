@@ -109,6 +109,7 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 uint32          active_proc_count(void);
 int             next_process(int before_pid, struct process_data *proc_data);
+int             nice(int inc);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

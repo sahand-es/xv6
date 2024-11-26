@@ -125,3 +125,10 @@ uint64 sys_next_process(void)
   }
   return 0;
 }
+
+uint64 sys_nice(void)
+{
+  int inc;
+  argint(0, &inc);
+  return nice(inc);
+}

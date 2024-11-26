@@ -21,4 +21,5 @@ struct process_data {
   int heap_size;
   enum proccess_state state;
   char name[16];
+  int nice;
 };

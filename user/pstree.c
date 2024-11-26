@@ -23,7 +23,7 @@ void _pstree_print(struct process_data node, struct process_data list[], int len
     printf("Zombie");
     break;
   }
-  printf(")\n");
+  printf(") (ni = %d) \n", node.nice);
 
   for (int i = 0; i < length; i++) {
     if (list[i].parent_pid == node.pid) {
