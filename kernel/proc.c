@@ -15,6 +15,58 @@ struct proc *initproc;
 int nextpid = 1;
 struct spinlock pid_lock;
 
+struct circ {
+  int widx;
+  int ridx;
+  int size;
+  struct proc **buffer;
+};
+
+void cb_init(struct circ *cb, int size) {
+  cb->widx = 0;
+  cb->ridx = 0;
+  cb->size = size;
+  cb->buffer = (struct proc **) kalloc();
+}
+
+int cb_empty(struct circ *cb) {
+  return cb->widx == cb->ridx;
+}
+
+int cb_full(struct circ *cb) {
+  return (cb->widx + 1) % cb->size == cb->ridx;
+}
+
+int cb_put(struct circ *cb, struct proc *value) {
+  if (cb_full(cb)) {
+    return 0;
+  }
+  cb->buffer[cb->widx] = value;
+  cb->widx = (cb->widx + 1) % cb->size;
+  return 1;
+}
+
+struct proc *cb_get(struct circ *cb) {
+  return cb->buffer[cb->ridx];
+}
+
+int cb_pop(struct circ *cb) {
+  if (cb_empty(cb)) {
+    return 0;
+  }
+  cb->ridx = (cb->ridx + 1) % cb->size;
+  return 1;
+}
+
+int cb_contains(struct circ *cb, struct proc *value) {
+  for (int i = cb->ridx; i != cb->widx; i = (i + 1) % cb->size) {
+    if (cb->buffer[i] == value) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 extern void forkret(void);
 static void freeproc(struct proc *p);
 
@@ -447,6 +499,14 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
 
+  struct circ q1;
+  struct circ q2;
+  struct circ q3;
+
+  cb_init(&q1, NPROC);
+  cb_init(&q2, NPROC);
+  cb_init(&q3, NPROC);
+
   c->proc = 0;
   for(;;){
     // The most recent process to run may have had interrupts
@@ -455,24 +515,82 @@ scheduler(void)
     intr_on();
 
     int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+    for (int i = 0; i < NPROC; i++) {
+      p = &proc[i];
+      if (p->state == RUNNABLE && !cb_contains(&q1, p)) {
+        cb_put(&q1, p);
+      }
+    }
+
+    while (!cb_empty(&q1)) {
+      p = cb_get(&q1);
+      cb_pop(&q1);
+      if (p->state != RUNNABLE) {
+        continue;
+      }
+      found = 1;
+
+      acquire(&p->lock);
+      p->schedn++;
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      c->proc = 0;
+
+      if (p->state == SLEEPING) {
+        cb_put(&q1, p);
+      } else if (p->state == RUNNABLE) {
+        cb_put(&q2, p);
+        p->schedn = 0;
+      }
+
+      release(&p->lock);
+    }
+
+    while (!cb_empty(&q2) && (p = cb_get(&q2))->state == RUNNABLE) {
+      found = 1;
+      cb_pop(&q2);
+
+      acquire(&p->lock);
+      p->schedn++;
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      c->proc = 0;
+
+      if (p->state == SLEEPING) {
+        cb_put(&q1, p);
+        p->schedn = 0;
+      } else if (p->state == RUNNABLE) {
+        if (p->schedn < 2) {
+          if (!cb_empty(&q1)) break;
+          p->schedn++;
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+        } else {
+          cb_put(&q3, p);
+          p->schedn = 0;
+        }
       }
       release(&p->lock);
     }
-    if(found == 0) {
+    while (!cb_empty(&q3) && (p = cb_get(&q3))->state == RUNNABLE) {
+      found = 1;
+      cb_pop(&q3);
+
+      acquire(&p->lock);
+      p->schedn++;
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      c->proc = 0;
+      release(&p->lock);
+      if (!cb_empty(&q1) || !cb_empty(&q2)) break;
+    }
+
+    if (!found) {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
@@ -583,8 +701,11 @@ wakeup(void *chan)
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
+      // if (p->state == SLEEPING)
+      //   printf("Waking up %d\n", p->pid);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        // printf("Set %d to runnable\n", p->pid);
       }
       release(&p->lock);
     }
