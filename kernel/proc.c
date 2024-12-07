@@ -518,7 +518,7 @@ scheduler(void)
 
     for (int i = 0; i < NPROC; i++) {
       p = &proc[i];
-      if (p->state == RUNNABLE && !cb_contains(&q1, p)) {
+      if (p->state == RUNNABLE && !cb_contains(&q1, p) && !cb_contains(&q2, p) && !cb_contains(&q3, p)) {
         cb_put(&q1, p);
       }
     }
@@ -531,6 +531,7 @@ scheduler(void)
       }
       found = 1;
 
+      printf("Running process %d (%s) from queue 1\n", p->pid, p->name);
       acquire(&p->lock);
       p->schedn++;
       p->state = RUNNING;
@@ -539,8 +540,10 @@ scheduler(void)
       c->proc = 0;
 
       if (p->state == SLEEPING) {
+        printf("IO for process %d (%s) from queue 1\n", p->pid, p->name);
         cb_put(&q1, p);
       } else if (p->state == RUNNABLE) {
+        printf("Timeslice for process %d (%s) ended, going to queue 2\n", p->pid, p->name);
         cb_put(&q2, p);
         p->schedn = 0;
       }
@@ -552,6 +555,7 @@ scheduler(void)
       found = 1;
       cb_pop(&q2);
 
+      printf("Running process %d (%s) from queue 2\n", p->pid, p->name);
       acquire(&p->lock);
       p->schedn++;
       p->state = RUNNING;
@@ -561,34 +565,54 @@ scheduler(void)
 
       if (p->state == SLEEPING) {
         cb_put(&q1, p);
+        printf("IO for process %d (%s) from queue 2\n", p->pid, p->name);
         p->schedn = 0;
       } else if (p->state == RUNNABLE) {
         if (p->schedn < 2) {
-          if (!cb_empty(&q1)) break;
+          printf("Timeslice for process %d (%s) ended, running again\n", p->pid, p->name);
+          if (!cb_empty(&q1)) {
+            printf("Queue 1 is ready, stopping process %d (%s) from queue 2\n", p->pid, p->name);
+            release(&p->lock);
+            break;
+          }
           p->schedn++;
           p->state = RUNNING;
           c->proc = p;
           swtch(&c->context, &p->context);
         } else {
+          printf("Timeslice for process %d (%s) ended, going to queue 3\n", p->pid, p->name);
           cb_put(&q3, p);
           p->schedn = 0;
         }
       }
       release(&p->lock);
     }
+
     while (!cb_empty(&q3) && (p = cb_get(&q3))->state == RUNNABLE) {
       found = 1;
       cb_pop(&q3);
 
+      printf("Running process %d (%s) from queue 3\n", p->pid, p->name);
       acquire(&p->lock);
-      p->schedn++;
-      p->state = RUNNING;
-      c->proc = p;
-      swtch(&c->context, &p->context);
-      c->proc = 0;
+      for (;;) {
+        p->schedn++;
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+        c->proc = 0;
+        if (p->state != RUNNABLE) {
+          printf("IO or termination for process %d (%s) from queue 3\n", p->pid, p->name);
+          break;
+        }
+        if (!cb_empty(&q1) || !cb_empty(&q2)) {
+          printf("Other queues are ready, stopping process %d (%s) from queue 3\n", p->pid, p->name);
+          release(&p->lock);
+          goto q3_break;
+        } 
+      }
       release(&p->lock);
-      if (!cb_empty(&q1) || !cb_empty(&q2)) break;
     }
+    q3_break:
 
     if (!found) {
       // nothing to run; stop running on this core until an interrupt.
