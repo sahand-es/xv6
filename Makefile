@@ -136,10 +136,6 @@ UPROGS=\
 	$U/_sh\
 	$U/_stressfs\
 	$U/_usertests\
-	$U/_sysinfo\
-	$U/_pstree\
-	$U/_hw3test\
-	$U/_hw5test\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
@@ -167,10 +163,11 @@ ifndef CPUS
 CPUS := 3
 endif
 
-QEMUOPTS = -machine virt,aclint=on -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+QEMUOPTS += -monitor telnet:127.0.0.1:38592,server,nowait
 
 qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)

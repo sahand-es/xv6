@@ -36,6 +36,3 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
-entry("sysinfo");
-entry("next_process");
-entry("nice");

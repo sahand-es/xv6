@@ -180,7 +180,6 @@ clockintr()
 // and handle it.
 // returns 2 if timer interrupt,
 // 1 if other device,
-// 3 if supervisor software interrupt
 // 0 if not recognized.
 int
 devintr()
@@ -207,26 +206,11 @@ devintr()
     if(irq)
       plic_complete(irq);
 
-    for (int i = 1; i < NCPU; i++) {
-      cpus[i].found_runnable = 1;
-      if (i != cpuid()) {
-        *((volatile int *) ACLINT_SETSSIP(i)) = 1;
-      }
-    }
-
     return 1;
   } else if(scause == 0x8000000000000005L){
     // timer interrupt.
     clockintr();
     return 2;
-  } else if(scause == 0x8000000000000001L) {
-    // supervisor software interrupt
-
-    // acknowledge the software interrupt by clearing
-    // the SSIP bit in sip.
-
-    w_sip(r_sip() & ~2);
-    return 3;
   } else {
     return 0;
   }
