@@ -316,7 +316,7 @@ freewalk(pagetable_t pagetable)
       uint64 child = PTE2PA(pte);
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
-    } else if(pte & PTE_V){
+    } else if(pte & PTE_U & PTE_V){
       panic("freewalk: leaf");
     }
   }
@@ -418,7 +418,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  panic("copyin");
+  memmove(dst, (void*)srcva, len);
+  return 0;
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -428,5 +429,5 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  panic("copyinstr");
+  return strncpy(dst, (char *)srcva, max) ? 0 : -1;
 }
