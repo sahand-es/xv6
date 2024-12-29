@@ -253,9 +253,7 @@ growproc(int n) {
 
   sz = p->sz;
   if (n > 0) {
-    if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
-      return -1;
-    }
+    sz += n;
   }
   else if (n < 0) {
     sz = uvmdealloc(p->pagetable, sz, sz + n);
@@ -284,6 +282,7 @@ fork(void) {
     return -1;
   }
   np->sz = p->sz;
+  np->top_of_stack = p->top_of_stack;
   np->nice = p->nice;
 
   // copy saved user registers.
